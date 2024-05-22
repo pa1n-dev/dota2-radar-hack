@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>dota 2</title>
+    <style>
+        body, html {
+            margin: 0;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+        }
+        #radar {
+            background: url('data/map.png') no-repeat center center;
+            background-size: contain;
+            max-width: 100%;
+            max-height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="radar"></canvas>
+</body>
+<script>
+    const web_socket = new WebSocket("ws://" + window.location.hostname + ":22800");
+    const canvas = document.getElementById("radar");
+    const ctx = canvas.getContext("2d");
+    const cache = {};
+
+    function resize_canvas() {
+        const size = Math.min(window.innerWidth, window.innerHeight);
+        canvas.width = size;
+        canvas.height = size;
+    }
+
+    function clear_canvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function scale_coordinate(value, min, max, size) {
+        return ((value - min) / (max - min)) * size;
+    }
+
+    async function preload_images() {
+        const response = await fetch('/list-data-files');
+        if (!response.ok) return;
+        const files = await response.json();
+        files.forEach(file => {
+            const img = new Image();
+            img.src = `data/${file}`;
+            cache[file] = img;
+        });
+    }
+
+    async function draw(entities) {
+        clear_canvas();
+
+        for (const entity of entities) {
+            const x = scale_coordinate(entity.x, -9216, 9216, canvas.width);
+            const y = scale_coordinate(-entity.y, -9216, 9216, canvas.height);
+            const icon = cache[`${entity.network_name}.png`];
+
+            if (icon) {
+                ctx.drawImage(icon, x - icon.width / 2, y - icon.height / 2);
+            }
+        }
+    }
+
+    web_socket.addEventListener("message", (e) => {
+        e.data.text().then((text) => {
+            const data = JSON.parse(text);
+            draw(data.data);
+        });
+    });
+    window.addEventListener('resize', resize_canvas);
+
+    resize_canvas();
+    preload_images();
+</script>
+</html>
